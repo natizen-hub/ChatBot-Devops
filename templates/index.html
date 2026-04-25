@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h2>🎯 Interview Assistant</h2>
+            <p class="subtitle">Powered by GROQ AI</p>
+
+            <div class="mode-section">
+                <p class="section-title">Choose Mode:</p>
+
+                <button class="mode-btn active" onclick="setMode('chat')" id="btn-chat">
+                    💬 General Chat
+                </button>
+                <button class="mode-btn" onclick="setMode('interview')" id="btn-interview">
+                    🎤 Mock Interview
+                </button>
+                <button class="mode-btn" onclick="setMode('cv')" id="btn-cv">
+                    📄 Generate CV
+                </button>
+            </div>
+
+            <div class="upload-section">
+                <p class="section-title">📎 Upload CV for Analysis:</p>
+                <input type="file" id="cv-file" accept=".txt,.pdf" />
+                <button class="upload-btn" onclick="uploadCV()">Analyze CV</button>
+            </div>
+
+            <button class="reset-btn" onclick="resetChat()">🔄 New Conversation</button>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area">
+            <div class="chat-box" id="chat-box">
+                <div class="message bot">
+                    Hello! 👋 I'm your Job Interview Assistant.<br><br>
+                    I can help you with:<br>
+                    🎤 Simulating a real job interview<br>
+                    📄 Generating a professional CV<br>
+                    💡 Improving your answers<br><br>
+                    Choose a mode from the sidebar or just start typing!
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <input
+                    type="text"
+                    id="user-input"
+                    placeholder="Type your message here..."
+                    onkeypress="handleKey(event)"
+                />
+                <button onclick="sendMessage()" id="send-btn">Send ➤</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentMode = "chat";
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
+            document.getElementById("btn-" + mode).classList.add("active");
+
+            const messages = {
+                chat: "Switched to General Chat mode 💬 Ask me anything!",
+                interview: "Switched to Mock Interview mode 🎤 Tell me the position you're applying for and I'll start the interview!",
+                cv: "Switched to CV Generator mode 📄 Tell me your personal info, experience and skills and I'll generate a professional CV!"
+            };
+            addMessage(messages[mode], "bot");
+        }
+
+        function handleKey(event) {
+            if (event.key === "Enter") sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById("user-input");
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, "user");
+            input.value = "";
+            document.getElementById("send-btn").disabled = true;
+            addMessage("⏳ Thinking...", "bot", "typing");
+
+            try {
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: message, mode: currentMode })
+                });
+                const data = await response.json();
+                document.getElementById("typing").remove();
+                addMessage(data.reply, "bot");
+            } catch (error) {
+                document.getElementById("typing").remove();
+                addMessage("❌ Connection error. Make sure the server is running!", "bot");
+            }
+
+            document.getElementById("send-btn").disabled = false;
+            input.focus();
+        }
+
+        async function uploadCV() {
+            const fileInput = document.getElementById("cv-file");
+            if (!fileInput.files[0]) {
+                addMessage("⚠️ Please select a file first!", "bot");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            addMessage("📎 Analyzing your CV...", "bot", "typing");
+
+            try {
+                const response = await fetch("/upload-cv", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+                document.getElementById("typing").remove();
+                addMessage("📊 CV Analysis:\n\n" + data.analysis, "bot");
+            } catch (error) {
+                document.getElementById("typing").remove();
+                addMessage("❌ Error uploading file!", "bot");
+            }
+        }
+
+        async function resetChat() {
+            await fetch("/reset", { method: "POST" });
+            document.getElementById("chat-box").innerHTML = "";
+            addMessage("✅ New conversation started! How can I help you?", "bot");
+            currentMode = "chat";
+            document.querySelectorAll(".mode-btn").forEach(btn => btn.classList.remove("active"));
+            document.getElementById("btn-chat").classList.add("active");
+        }
+
+        function addMessage(text, sender, id = "") {
+            const chatBox = document.getElementById("chat-box");
+            const div = document.createElement("div");
+            div.className = "message " + sender;
+            if (id) div.id = id;
+            div.innerText = text;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
